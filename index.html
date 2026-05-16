@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Premium interactive audio player with real-time transcript synchronization and word-level highlighting for language learning and audio review." />
+    <meta
+      name="description"
+      content="Premium interactive audio player with real-time transcript synchronization and word-level highlighting for language learning and audio review."
+    />
     <meta name="theme-color" content="#030303" />
     <title>GengoLura | Audio & Transcript Player</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -21,8 +24,16 @@
       <aside id="sidebar" class="sidebar">
         <div class="sidebar-header">
           <div class="logo-container">
-            <img src="/logo.png" alt="GengoLura" class="sidebar-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-            <h2 style="display: none;">GengoLura</h2>
+            <img
+              src="/logo.png"
+              alt="GengoLura"
+              class="sidebar-logo"
+              onerror="
+                this.style.display = 'none';
+                this.nextElementSibling.style.display = 'block';
+              "
+            />
+            <h2 style="display: none">GengoLura</h2>
           </div>
           <button
             id="btn-sidebar-close"
@@ -339,20 +350,21 @@
               </p>
 
               <div class="settings-row">
-                <label for="transcription-mode">Transcription Mode:</label>
+                <label for="transcription-mode">Transcription View Mode:</label>
                 <select id="transcription-mode">
-                  <option value="word" selected>Word</option>
-                  <option value="sentence">Sentence</option>
+                  <option value="word" selected>Word-by-Word View</option>
+                  <option value="sentence">Sentence View</option>
                 </select>
               </div>
               <p class="settings-help-text">
-                <strong>Word:</strong> Precise word-by-word tracking with sliding
-                highlights.<br />
-                <strong>Sentence:</strong> Traditional paragraph view that
-                highlights full sentences.
-                <br /><br />
-                <em>Note: Tracking precision depends entirely on the timing data
-                  within your provided .vtt file.</em>
+                <strong>Word-by-Word View:</strong> Precise word-by-word
+                tracking with highlights (Karaoke-style).<br />
+                <strong>Sentence View:</strong> Traditional paragraph view that
+                highlights full sentences (like subtitles). <br /><br />
+                <i>
+                  &quot;Highlighting precision depends entirely on the timing
+                  data within your provided .vtt file.&quot;
+                </i>
               </p>
             </div>
           </div>

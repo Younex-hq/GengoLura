@@ -8,9 +8,15 @@
 
 It's a local Spotify for audio files with transcripts, upload audio + transcripts (vtt), organize them into playlists (folders), and play them back with synchronized word-level highlighting. You can bookmark specific words or sentences to review later. It's all done locally in your browser, so your files never touch a server.
 
-## what is it - how to use - tips :
+[![](./public/v1-screenshot.png)](https://younex-hq.github.io/GengoLura/)
 
-An interactive web application designed for high-performance language learning and audio review. Synchronize your audio recordings with WebVTT transcripts for a seamless, immersive study experience.
+> NOTE : the accuracy of the highlighting depends on the accuracy of the .VTT file provided by the user.
+
+> Try it out at : [github page - GengoLura](https://younex-hq.github.io/GengoLura/)
+
+## Corp Description :
+
+GengoLura is an interactive web application designed for high-performance language learning and audio review. Synchronize your audio recordings with WebVTT transcripts for a seamless, immersive study experience.
 
 ## Features
 
@@ -87,4 +93,4 @@ Use [Buzz](https://github.com/chidiwilliams/buzz) to generate word-level transcr
 
 ## License
 
-MIT License - feel free to use and adapt this for your own projects!
+MIT License - feel free to use and adapt this for your own projects (the Logo is not under MIT License)
