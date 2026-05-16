@@ -1,5 +1,7 @@
 # GengoLura (Audio & Transcript Player)
 
+![](public/logo.png)
+
 **Gengo** (Japanese: _Language_) + **Lura** (Swedish: _Listen_) = **GengoLura** (Language Listening).
 
 ## Long story short:
@@ -8,7 +10,7 @@ It's a local Spotify for audio files with transcripts, upload audio + transcript
 
 ## what is it - how to use - tips :
 
-A premium, interactive web application designed for high-performance language learning and audio review. Synchronize your audio recordings with WebVTT transcripts for a seamless, immersive study experience.
+An interactive web application designed for high-performance language learning and audio review. Synchronize your audio recordings with WebVTT transcripts for a seamless, immersive study experience.
 
 ## Features
 
@@ -25,7 +27,9 @@ A premium, interactive web application designed for high-performance language le
 
 ## Preparation & Transcription
 
-To get the most out of this app, you need high-quality `.vtt` (WebVTT) transcript files. For local audio transcription, you can :
+To get the most out of this app, you need high-quality `.vtt` (WebVTT) transcript files.
+
+if you are looking for a good local audio transcription software, you can :
 Use [Buzz](https://github.com/chidiwilliams/buzz) to generate word-level transcripts for your audio files, then import them here for a premium playback experience.
 
 ---
@@ -42,8 +46,8 @@ Use [Buzz](https://github.com/chidiwilliams/buzz) to generate word-level transcr
 1. Clone the repository:
 
    ```bash
-   git clone <your-repo-url>
-   cd audio-transcribe
+   git clone <this repository link>
+   cd GengoLura
    ```
 
 2. Install dependencies:
@@ -59,9 +63,12 @@ Use [Buzz](https://github.com/chidiwilliams/buzz) to generate word-level transcr
    ```
 
 4. Build for production:
+
    ```bash
    pnpm run build
    ```
+
+   - preview : `pnpm run preview`
 
 ## Tech Stack
 
