@@ -10,21 +10,38 @@ interface AppDB extends DBSchema {
     key: string;
     value: AudioTrack;
   };
+  appState: {
+    key: string;
+    value: any;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<AppDB>>;
 
 export function initDB() {
-  dbPromise = openDB<AppDB>('AudioTranscribeApp', 2, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains('playlists')) {
+  dbPromise = openDB<AppDB>('AudioTranscribeApp', 3, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
         db.createObjectStore('playlists', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('standaloneTracks')) {
         db.createObjectStore('standaloneTracks', { keyPath: 'id' });
+      }
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains('appState')) {
+          db.createObjectStore('appState');
+        }
       }
     },
   });
+}
+
+export async function savePlaybackState(trackId: string, playlistId: string | null, currentTime: number) {
+  const db = await dbPromise;
+  await db.put('appState', { trackId, playlistId, currentTime }, 'lastPlaybackState');
+}
+
+export async function getPlaybackState(): Promise<{ trackId: string; playlistId: string | null; currentTime: number } | undefined> {
+  const db = await dbPromise;
+  return db.get('appState', 'lastPlaybackState');
 }
 
 export async function savePlaylist(playlist: Playlist) {

@@ -6,6 +6,8 @@ import {
   saveStandaloneTrack,
   getAllStandaloneTracks,
   deleteStandaloneTrack,
+  savePlaybackState,
+  getPlaybackState,
 } from "./utils/indexedDB";
 import { AudioPlayer } from "./modules/player";
 import { parseVTT } from "./modules/subtitles";
@@ -74,6 +76,18 @@ const playlistNameInput = document.getElementById(
 let tempAudioFiles: (File | { name: string; isMissing: true })[] = [];
 let tempVttFiles: (File | { name: string; isMissing: true })[] = [];
 
+// Playback state persistence variables
+async function persistPlaybackState() {
+  if (!activeTrackId) return;
+  const playlistId = activePlaylistId || "standalone";
+  const currentTime = player.currentTime;
+  try {
+    await savePlaybackState(activeTrackId, playlistId, currentTime);
+  } catch (e) {
+    console.error("Failed to save playback state to IndexedDB:", e);
+  }
+}
+
 // Initialize Player
 const player = new AudioPlayer(
   (currentTime, duration) => {
@@ -91,6 +105,8 @@ const player = new AudioPlayer(
   },
   () => {
     updatePlayPauseUI(false);
+    // Save when track ends
+    persistPlaybackState();
     // Auto-play next track logic could go here
   },
 );
@@ -117,12 +133,52 @@ async function init() {
   initDB();
   await loadLibrary();
   setupEventListeners();
+  await restorePlaybackState();
 }
 
 async function loadLibrary() {
   currentPlaylists = await getAllPlaylists();
   standaloneTracks = await getAllStandaloneTracks();
   renderSidebar();
+}
+
+async function restorePlaybackState() {
+  try {
+    const state = await getPlaybackState();
+    if (state) {
+      let matchedTrack: AudioTrack | undefined = undefined;
+      let matchedPlaylist: Playlist | undefined = undefined;
+
+      if (state.playlistId === "standalone") {
+        matchedTrack = standaloneTracks.find((t) => t.id === state.trackId);
+        matchedPlaylist = { id: "standalone", name: "Standalone", tracks: [] };
+      } else if (state.playlistId) {
+        matchedPlaylist = currentPlaylists.find(
+          (p) => p.id === state.playlistId,
+        );
+        if (matchedPlaylist) {
+          matchedTrack = matchedPlaylist.tracks.find(
+            (t) => t.id === state.trackId,
+          );
+        }
+      }
+
+      if (matchedTrack && matchedPlaylist) {
+        if (state.playlistId !== "standalone") {
+          activePlaylistId = state.playlistId;
+        }
+        await playTrack(
+          matchedTrack,
+          matchedPlaylist,
+          false,
+          state.currentTime,
+        );
+        renderSidebar();
+      }
+    }
+  } catch (e) {
+    console.error("Failed to restore playback state from IndexedDB:", e);
+  }
 }
 
 function renderSidebar() {
@@ -280,17 +336,12 @@ function createTrackElement(track: AudioTrack, playlist?: Playlist) {
   trackLi.appendChild(contentDiv);
   trackLi.appendChild(actionsDiv);
 
-  trackLi.addEventListener("click", (e) => {
-    e.stopPropagation();
-    playTrack(
-      track,
-      playlist || { id: "standalone", name: "Standalone", tracks: [] },
-    );
-    renderSidebar();
-
-    if (window.innerWidth <= 768) {
-      sidebar.classList.remove("open");
-      sidebarOverlay.classList.remove("open");
+  trackLi.addEventListener("click", () => {
+    if (activeTrackId !== track.id) {
+      playTrack(
+        track,
+        playlist || { id: "standalone", name: "Standalone", tracks: [] },
+      );
     }
   });
 
@@ -408,7 +459,12 @@ function openEditTrackModal(track: AudioTrack, playlist?: Playlist) {
   uploadModal.classList.remove("hidden");
 }
 
-async function playTrack(track: AudioTrack, playlist: Playlist) {
+async function playTrack(
+  track: AudioTrack,
+  playlist: Playlist,
+  autoPlay = true,
+  startTime?: number,
+) {
   activeTrackId = track.id;
   activeTrack = track;
   currentTrackTitleEl.textContent = track.name;
@@ -416,10 +472,18 @@ async function playTrack(track: AudioTrack, playlist: Playlist) {
   playerPlaylistEl.textContent = playlist.name;
 
   // 1. Try to restore from session cache (if user just uploaded files in metadata-only mode)
-  if (!track.audioFile && track.audioFileName && sessionFileCache.has(track.audioFileName)) {
+  if (
+    !track.audioFile &&
+    track.audioFileName &&
+    sessionFileCache.has(track.audioFileName)
+  ) {
     track.audioFile = sessionFileCache.get(track.audioFileName)!;
   }
-  if (!track.vttFile && track.vttFileName && sessionFileCache.has(track.vttFileName)) {
+  if (
+    !track.vttFile &&
+    track.vttFileName &&
+    sessionFileCache.has(track.vttFileName)
+  ) {
     track.vttFile = sessionFileCache.get(track.vttFileName)!;
   }
 
@@ -443,9 +507,9 @@ async function playTrack(track: AudioTrack, playlist: Playlist) {
 
   if (!track.audioFile) {
     currentTrackTitleEl.textContent = track.name + " (File Missing)";
-    
-    const vttInfo = track.vttFileName 
-      ? `<p>Transcript: <strong>${track.vttFileName}</strong></p>` 
+
+    const vttInfo = track.vttFileName
+      ? `<p>Transcript: <strong>${track.vttFileName}</strong></p>`
       : "";
 
     transcriptContainerEl.innerHTML = `
@@ -494,29 +558,26 @@ async function playTrack(track: AudioTrack, playlist: Playlist) {
         );
       }
     });
+
+    renderSidebar();
     return;
   }
 
-  player.loadTrack(track.audioFile, true, track.bookmarkTime);
-  updatePlayPauseUI(true);
-
-  transcriptContainerEl.innerHTML =
-    '<div class="empty-state">Loading transcript...</div>';
-
+  // Load and Parse VTT
+  activeCues = [];
   if (track.vttFile) {
     try {
       activeCues = await parseVTT(track.vttFile);
-      renderTranscript();
     } catch (e) {
-      console.error(e);
-      transcriptContainerEl.innerHTML =
-        '<div class="empty-state">Failed to load transcript.</div>';
+      console.error("Failed to parse VTT:", e);
     }
-  } else {
-    activeCues = [];
-    transcriptContainerEl.innerHTML =
-      '<div class="empty-state">No transcript available for this track.</div>';
   }
+
+  renderSidebar();
+  renderTranscript();
+  const initialTime = startTime !== undefined ? startTime : track.bookmarkTime;
+  player.loadTrack(track.audioFile, autoPlay, initialTime);
+  updatePlayPauseUI(autoPlay);
 }
 
 function renderTranscript() {
@@ -622,23 +683,19 @@ function updateActiveCue(currentTime: number) {
     (c) => currentTime >= c.startTime && currentTime <= c.endTime,
   );
 
-  if (currentCue) {
-    if (lastActiveCueId !== currentCue.id) {
-      // Remove old active
-      if (lastActiveCueId) {
-        const oldEl = document.getElementById(lastActiveCueId);
-        if (oldEl) oldEl.classList.remove("active");
-      }
-      // Set new active
-      const newEl = document.getElementById(currentCue.id);
-      if (newEl) {
-        newEl.classList.add("active");
-        // Auto scroll
-        newEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-      lastActiveCueId = currentCue.id;
+  if (currentCue && currentCue.id !== lastActiveCueId) {
+    const activeEl = document.getElementById(currentCue.id);
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      activeEl.classList.add("active");
     }
-  } else if (lastActiveCueId) {
+
+    if (lastActiveCueId) {
+      const oldEl = document.getElementById(lastActiveCueId);
+      if (oldEl) oldEl.classList.remove("active");
+    }
+    lastActiveCueId = currentCue.id;
+  } else if (!currentCue && lastActiveCueId) {
     const oldEl = document.getElementById(lastActiveCueId);
     if (oldEl) oldEl.classList.remove("active");
     lastActiveCueId = null;
@@ -651,11 +708,18 @@ function setupEventListeners() {
     if (activeTrackId) {
       player.togglePlay();
       updatePlayPauseUI(player.isPlaying());
+      persistPlaybackState();
     }
   });
 
-  btnRewind.addEventListener("click", () => player.jump(-5));
-  btnForward.addEventListener("click", () => player.jump(5));
+  btnRewind.addEventListener("click", () => {
+    player.jump(-5);
+    persistPlaybackState();
+  });
+  btnForward.addEventListener("click", () => {
+    player.jump(5);
+    persistPlaybackState();
+  });
 
   btnSpeed.addEventListener("click", () => {
     currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
@@ -676,6 +740,10 @@ function setupEventListeners() {
       const seekTime = (val / 100) * player.duration;
       player.seek(seekTime);
     }
+  });
+
+  progressBarEl.addEventListener("change", () => {
+    persistPlaybackState();
   });
 
   const btnSidebarClose = document.getElementById("btn-sidebar-close")!;
@@ -921,6 +989,14 @@ function setupEventListeners() {
 
     await loadLibrary();
     uploadModal.classList.add("hidden");
+  });
+
+  window.addEventListener("beforeunload", () => {
+    persistPlaybackState();
+  });
+
+  window.addEventListener("pagehide", () => {
+    persistPlaybackState();
   });
 }
 
