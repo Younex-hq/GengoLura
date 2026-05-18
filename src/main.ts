@@ -1,17 +1,82 @@
 import {
   initDB,
-  savePlaylist,
-  getAllPlaylists,
-  deletePlaylist,
-  saveStandaloneTrack,
-  getAllStandaloneTracks,
-  deleteStandaloneTrack,
-  savePlaybackState,
-  getPlaybackState,
+  savePlaylist as dbSavePlaylist,
+  getAllPlaylists as dbGetAllPlaylists,
+  deletePlaylist as dbDeletePlaylist,
+  saveStandaloneTrack as dbSaveStandaloneTrack,
+  getAllStandaloneTracks as dbGetAllStandaloneTracks,
+  deleteStandaloneTrack as dbDeleteStandaloneTrack,
+  savePlaybackState as dbSavePlaybackState,
+  getPlaybackState as dbGetPlaybackState,
 } from "./utils/indexedDB";
 import { AudioPlayer } from "./modules/player";
 import { parseVTT } from "./modules/subtitles";
 import { AudioTrack, Playlist, SubtitleCue } from "./types";
+import { ApiClient } from "./utils/api";
+
+// Wrappers for Storage (IndexedDB + External API)
+async function savePlaylist(playlist: Playlist) {
+  await dbSavePlaylist(playlist);
+  if (ApiClient.isConfigured()) {
+    await ApiClient.savePlaylist(playlist);
+  }
+}
+
+async function getAllPlaylists(): Promise<Playlist[]> {
+  if (ApiClient.isConfigured()) {
+    const apiPlaylists = await ApiClient.getAllPlaylists();
+    if (apiPlaylists) return apiPlaylists;
+  }
+  return dbGetAllPlaylists();
+}
+
+async function deletePlaylist(id: string) {
+  await dbDeletePlaylist(id);
+  if (ApiClient.isConfigured()) {
+    await ApiClient.deletePlaylist(id);
+  }
+}
+
+async function saveStandaloneTrack(track: AudioTrack) {
+  await dbSaveStandaloneTrack(track);
+  if (ApiClient.isConfigured()) {
+    await ApiClient.saveStandaloneTrack(track);
+  }
+}
+
+async function getAllStandaloneTracks(): Promise<AudioTrack[]> {
+  if (ApiClient.isConfigured()) {
+    const apiTracks = await ApiClient.getAllStandaloneTracks();
+    if (apiTracks) return apiTracks;
+  }
+  return dbGetAllStandaloneTracks();
+}
+
+async function deleteStandaloneTrack(id: string) {
+  await dbDeleteStandaloneTrack(id);
+  if (ApiClient.isConfigured()) {
+    await ApiClient.deleteStandaloneTrack(id);
+  }
+}
+
+async function savePlaybackState(
+  trackId: string,
+  playlistId: string | null,
+  currentTime: number,
+) {
+  await dbSavePlaybackState(trackId, playlistId, currentTime);
+  if (ApiClient.isConfigured()) {
+    await ApiClient.savePlaybackState(trackId, playlistId, currentTime);
+  }
+}
+
+async function getPlaybackState() {
+  if (ApiClient.isConfigured()) {
+    const apiState = await ApiClient.getPlaybackState();
+    if (apiState) return apiState;
+  }
+  return dbGetPlaybackState();
+}
 
 // State
 let currentPlaylists: Playlist[] = [];
@@ -71,6 +136,12 @@ const btnSavePlaylist = document.getElementById("btn-save-playlist")!;
 const playlistNameInput = document.getElementById(
   "playlist-name",
 ) as HTMLInputElement;
+
+const btnSettings = document.getElementById("btn-settings")!;
+const settingsModal = document.getElementById("settings-modal")!;
+const btnCloseSettings = document.getElementById("btn-close-settings")!;
+const btnSaveSettings = document.getElementById("btn-save-settings")!;
+const apiUrlInput = document.getElementById("api-url") as HTMLInputElement;
 
 // Temporary state for the modal
 let tempAudioFiles: (File | { name: string; isMissing: true })[] = [];
@@ -505,6 +576,25 @@ async function playTrack(
     }
   }
 
+  // 3. Try to fetch from External API if configured
+  if (ApiClient.isConfigured()) {
+    if (!track.audioFile) {
+      currentTrackTitleEl.textContent = "Fetching audio from server...";
+      const audio = await ApiClient.fetchFile(track.id, "audio");
+      if (audio) {
+        track.audioFile = audio;
+        // We do NOT save to IndexedDB here to keep the file temporary (Session only)
+      }
+    }
+    if (!track.vttFile) {
+      const vtt = await ApiClient.fetchFile(track.id, "vtt");
+      if (vtt) {
+        track.vttFile = vtt;
+        // We do NOT save to IndexedDB here to keep the file temporary (Session only)
+      }
+    }
+  }
+
   if (!track.audioFile) {
     currentTrackTitleEl.textContent = track.name + " (File Missing)";
 
@@ -827,6 +917,30 @@ function setupEventListeners() {
 
   btnBookmarkMobile.addEventListener("click", handleBookmark);
   btnBookmarkDesktop.addEventListener("click", handleBookmark);
+
+  // Settings
+  btnSettings.addEventListener("click", () => {
+    apiUrlInput.value = ApiClient.getApiUrl() || "";
+    settingsModal.classList.remove("hidden");
+  });
+
+  btnCloseSettings.addEventListener("click", () => {
+    settingsModal.classList.add("hidden");
+  });
+
+  btnSaveSettings.addEventListener("click", async () => {
+    const url = apiUrlInput.value.trim();
+    ApiClient.setApiUrl(url || null);
+    settingsModal.classList.add("hidden");
+    // Reload library to sync with new API
+    await loadLibrary();
+    await restorePlaybackState();
+    alert(
+      url
+        ? "Settings saved! Data will now sync to the external database."
+        : "Settings saved! Using local storage only.",
+    );
+  });
 
   // Modal
   btnNewFolder.addEventListener("click", () => {
